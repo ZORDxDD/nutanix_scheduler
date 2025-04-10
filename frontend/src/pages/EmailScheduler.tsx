@@ -7,7 +7,7 @@ interface EmailJob {
   emails: string[];
   subject: string;
   content: string;
-  cronTime?: string;
+  interval?: { value: number; unit: string };
   sendAt?: string;
 }
 
@@ -16,7 +16,8 @@ const EmailScheduler = () => {
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
   const [scheduleType, setScheduleType] = useState<'onetime' | 'periodic'>('onetime');
-  const [cronTime, setCronTime] = useState('');
+  const [intervalValue, setIntervalValue] = useState('');
+  const [intervalUnit, setIntervalUnit] = useState<'seconds' | 'minutes' | 'hours' | 'days'>('minutes');
   const [sendAt, setSendAt] = useState('');
   const [scheduledJobs, setScheduledJobs] = useState<EmailJob[]>([]);
 
@@ -24,7 +25,6 @@ const EmailScheduler = () => {
     fetchScheduledJobs();
   }, []);
 
-  //useEffect to log scheduledJobs whenever they change
   useEffect(() => {
     console.log('Scheduled Jobs:', scheduledJobs);
   }, [scheduledJobs]);
@@ -54,7 +54,9 @@ const EmailScheduler = () => {
       emails: emailList,
       subject,
       content,
-      ...(scheduleType === 'periodic' ? { cronTime } : { sendAt })
+      ...(scheduleType === 'periodic' 
+        ? { interval: { value: Number(intervalValue), unit: intervalUnit } } 
+        : { sendAt })
     };
 
     try {
@@ -75,7 +77,8 @@ const EmailScheduler = () => {
       setEmails('');
       setSubject('');
       setContent('');
-      setCronTime('');
+      setIntervalValue('');
+      setIntervalUnit('minutes');
       setSendAt('');
     } catch (error) {
       toast.error('Failed to schedule email');
@@ -150,16 +153,32 @@ const EmailScheduler = () => {
           </div>
 
           {scheduleType === 'periodic' ? (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700">Cron Expression</label>
-              <input
-                type="text"
-                value={cronTime}
-                onChange={(e) => setCronTime(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="*/5 * * * *"
-                required
-              />
+            <div className="mb-4 flex space-x-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700">Interval Value</label>
+                <input
+                  type="number"
+                  value={intervalValue}
+                  onChange={(e) => setIntervalValue(e.target.value)}
+                  min="1"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  placeholder="e.g., 5"
+                  required
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700">Unit</label>
+                <select
+                  value={intervalUnit}
+                  onChange={(e) => setIntervalUnit(e.target.value as 'seconds' | 'minutes' | 'hours' | 'days')}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                >
+                  <option value="seconds">Seconds</option>
+                  <option value="minutes">Minutes</option>
+                  <option value="hours">Hours</option>
+                  <option value="days">Days</option>
+                </select>
+              </div>
             </div>
           ) : (
             <div className="mb-4">
@@ -199,8 +218,8 @@ const EmailScheduler = () => {
                     <p className="text-sm text-gray-500 mt-1">{job.content}</p>
                     <div className="flex items-center mt-2 text-sm text-gray-500">
                       <Clock className="h-4 w-4 mr-1" />
-                      {job.cronTime 
-                        ? `Cron: ${job.cronTime}` 
+                      {job.interval 
+                        ? `Every ${job.interval.value} ${job.interval.unit}` 
                         : `Send at: ${new Date(job.sendAt!).toLocaleString()}`}
                     </div>
                   </div>

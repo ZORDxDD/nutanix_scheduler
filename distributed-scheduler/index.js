@@ -13,7 +13,25 @@ app.use(express.json());
 const port = process.env.PORT || 5000;
 const jobsFilePath = path.join(__dirname, 'jobs-email.json');
 
-//Helper functions for file operations 
+// Helper function to convert interval to cron
+const convertIntervalToCron = (interval) => {
+  const { value, unit } = interval;
+
+  switch(unit) {
+    case 'seconds':
+      return `*/${value} * * * * *`; // every x seconds
+    case 'minutes':
+      return `*/${value} * * * *`;   // every x minutes
+    case 'hours':
+      return `0 */${value} * * *`;   // every x hours
+    case 'days':
+      return `0 0 */${value} * *`;   // every x days
+    default:
+      throw new Error('Invalid interval unit. Use seconds, minutes, hours, or days.');
+  }
+};
+
+// Helper functions for file operations 
 const readJobsFile = () => {
   try {
     const data = fs.readFileSync(jobsFilePath, 'utf-8');
@@ -68,14 +86,15 @@ const sendEmail = async (emails, subject, content, jobId) => {
   }
 };
 
-//Schedule Recurring Job
-const scheduleRecurringJob = (jobId, { emails, subject, content, cronTime }) => {
+// Schedule Recurring Job
+const scheduleRecurringJob = (jobId, { emails, subject, content, interval }) => {
+  const cronTime = convertIntervalToCron(interval);
   const task = cron.schedule(cronTime, () => sendEmail(emails, subject, content, jobId), {
     scheduled: true,
     timezone: process.env.TIMEZONE || 'UTC'
   });
   scheduledJobs[jobId] = task;
-  console.log(`Recurring Job ${jobId} scheduled with cron "${cronTime}"`);
+  console.log(`Recurring Job ${jobId} scheduled with interval ${interval.value} ${interval.unit}`);
 };
 
 // Schedule One-Time Job 
@@ -95,12 +114,12 @@ const scheduleOneTimeJob = (jobId, { emails, subject, content, sendAt }) => {
   console.log(`One-Time Job ${jobId} scheduled at ${sendAt}`);
 };
 
-//Load Jobs from File
+// Load Jobs from File
 if (fs.existsSync(jobsFilePath)) {
   const jobs = readJobsFile();
   console.log("Loaded jobs from file:", jobs);
   Object.entries(jobs).forEach(([jobId, jobData]) => {
-    if (jobData.cronTime) {
+    if (jobData.interval) {
       scheduleRecurringJob(jobId, jobData);
     } else if (jobData.sendAt) {
       scheduleOneTimeJob(jobId, jobData);
@@ -110,19 +129,23 @@ if (fs.existsSync(jobsFilePath)) {
   writeJobsFile({});
 }
 
-//API to Schedule New Job
+// API to Schedule New Job
 app.post('/schedule', (req, res) => {
-  const { emails, subject, content, cronTime, sendAt, session } = req.body;
+  const { emails, subject, content, interval, sendAt, session } = req.body;
 
-  if (!emails || !subject || !content || (!cronTime && !sendAt)) {
+  if (!emails || !subject || !content || (!interval && !sendAt)) {
     return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  if (interval && (!interval.value || !interval.unit)) {
+    return res.status(400).json({ error: 'Interval must include both value and unit' });
   }
 
   const jobId = session || `job-${Date.now()}`;
   const newJob = { emails, subject, content };
 
-  if (cronTime) {
-    newJob.cronTime = cronTime;
+  if (interval) {
+    newJob.interval = interval;
     scheduleRecurringJob(jobId, newJob);
   }
   
@@ -139,7 +162,7 @@ app.post('/schedule', (req, res) => {
   res.json({ message: 'Job scheduled successfully', jobId });
 });
 
-//Delete Job 
+// Delete Job 
 app.delete('/schedule/:jobId', (req, res) => {
   const { jobId } = req.params;
   console.log("Attempting to delete job:", jobId);

@@ -11,7 +11,7 @@ const port = process.env.PORT || 4000;
 
 // Middlewares
 app.use(cors({
-  origin: '*',  // Adjust if frontend URL is fixed
+  origin: '*', // Adjust if frontend URL is fixed
 }));
 app.use(express.json());
 
@@ -26,6 +26,24 @@ const scheduledSMS = {};
 if (!fs.existsSync(jobsFile)) {
   fs.writeFileSync(jobsFile, JSON.stringify({ jobs: [] }, null, 2));
 }
+
+// Convert to cron time
+const convertIntervalToCron = (interval) => {
+  const { value, unit } = interval;
+
+  switch (unit) {
+    case 'seconds':
+      return `*/${value} * * * * *`;
+    case 'minutes':
+      return `*/${value} * * * *`;
+    case 'hours':
+      return `0 */${value} * * *`;
+    case 'days':
+      return `0 0 */${value} * *`;
+    default:
+      throw new Error('Invalid interval unit. Use seconds, minutes, hours, or days.');
+  }
+};
 
 // Utility: Save Job
 const saveJob = (jobData) => {
@@ -44,7 +62,7 @@ const removeJob = (jobId) => {
 // Utility: Format Number
 const formatPhoneNumber = (number) => {
   if (!number.startsWith('+')) {
-    return '+91' + number;  // Change according to your country code
+    return '+91' + number; // Change according to your country code
   }
   return number;
 };
@@ -58,9 +76,9 @@ const sendSMS = async (number, message, jobId) => {
       from: process.env.TWILIO_PHONE_NUMBER,
       to: formattedNumber,
     });
-    console.log(` SMS sent to ${formattedNumber} | Job ID: ${jobId}`);
+    console.log(`SMS sent to ${formattedNumber} | Job ID: ${jobId}`);
   } catch (error) {
-    console.error(` Failed to send SMS | Job ID: ${jobId} | Error: ${error.message}`);
+    console.error(`Failed to send SMS | Job ID: ${jobId} | Error: ${error.message}`);
   }
 };
 
@@ -77,7 +95,7 @@ const scheduleJob = (job) => {
     });
 
     scheduledSMS[jobId] = task;
-    console.log(` Periodic Job Scheduled | Job ID: ${jobId}`);
+    console.log(`Periodic Job Scheduled | Job ID: ${jobId}`);
 
   } else if (dateTime) {
     const delay = new Date(dateTime).getTime() - Date.now();
@@ -85,7 +103,7 @@ const scheduleJob = (job) => {
     if (delay > 0) {
       const timeout = setTimeout(async () => {
         await sendSMS(number, message, jobId);
-        removeJob(jobId);  // Remove after one-time execution
+        removeJob(jobId); // Remove after one-time execution
       }, delay);
 
       scheduledSMS[jobId] = { stop: () => clearTimeout(timeout) };
@@ -100,10 +118,21 @@ existingJobs.jobs.forEach(scheduleJob);
 
 // API: Schedule SMS
 app.post('/api/schedule-sms', (req, res) => {
-  const { number, message, cronTime, dateTime, jobId } = req.body;
+  const { number, message, cronTime, dateTime, interval, jobId } = req.body;
 
-  if (!number || !message || (!cronTime && !dateTime)) {
+  if (!number || !message || (!cronTime && !dateTime && !interval)) {
     return res.status(400).json({ success: false, error: 'Missing required fields' });
+  }
+
+  let finalCronTime = cronTime;
+
+  // Auto-generate cron time if interval is given
+  if (!cronTime && interval) {
+    try {
+      finalCronTime = convertIntervalToCron(interval);
+    } catch (error) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
   }
 
   const id = jobId || `sms-job-${Date.now()}`;
@@ -112,7 +141,8 @@ app.post('/api/schedule-sms', (req, res) => {
     jobId: id,
     number,
     message,
-    ...(cronTime && { cronTime }),
+    ...(interval && { interval }), // Preserve the original interval object
+    ...(finalCronTime && { cronTime: finalCronTime }),
     ...(dateTime && { dateTime }),
   };
 

@@ -1,3 +1,6 @@
+#[![Watch the demo](./thumbnail.png)](https://drive.google.com/file/d/1e3Tkt68NZbyvbfjCPYgJtJ4sLhsvrLr_/view?usp=sharing)
+
+
 # Email & SMS Notification Scheduler
 
 A lightweight Node.js service that sends scheduled emails and SMS messages using Node‑Cron, Twilio, and Nodemailer. Exposes an Express API for on‑demand testing and uses environment variables for configuration.

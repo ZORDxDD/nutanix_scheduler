@@ -1,4 +1,4 @@
-#[![Watch the demo](./thumbnail.png)](https://drive.google.com/file/d/1e3Tkt68NZbyvbfjCPYgJtJ4sLhsvrLr_/view?usp=sharing)
+# [![Watch the demo](./thumbnail.png)](https://drive.google.com/file/d/1e3Tkt68NZbyvbfjCPYgJtJ4sLhsvrLr_/view?usp=sharing)
 
 
 # Email & SMS Notification Scheduler
